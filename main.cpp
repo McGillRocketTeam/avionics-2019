@@ -1,5 +1,4 @@
 #include <Arduino.h>
-
 #include <Adafruit_BMP280.h>
 #include <Adafruit_BNO055.h>
 #include <Wire.h>
@@ -22,16 +21,20 @@ const int card_chipSelect = BUILTIN_SDCARD;
 
 // Functional vars
 int file_num = 0;  // file number iterator
-String datastring;
+String datastring; //memory to store sensor data
+int entry_num = 0; //number used to determine whether to write to SD card
+int total_entry = 0;//number used to determine whether to create new file
+int max_entries = 1000; //max number of entries in a file before creating a new one. Recommend to be multiple of 100. 
 float ground_alt;
 unsigned long previous_file_size = 0;
 float temperature, pressure, alt, mag_x, mag_y, mag_z, gyro_x, gyro_y, gyro_z, 
       accel_x, accel_y, accel_z, time_passed, t_previous, alt_previous, vel, accel_magnitude;
 uint32_t timer;
 
-static int create_file();
+static int create_file(int);//update file_num
 static void read_data();
 static void store_data();
+
 
 /*GPS*/
 #define mySerial Serial1
@@ -88,7 +91,7 @@ void setup() {
   useInterrupt(true);
 #endif
 
-  file_num = create_file();  
+  file_num = create_file(file_num);  
 
   delay(1000);
 
@@ -131,18 +134,21 @@ void loop() {
   store_data();
 }
 
-static int create_file() {
-  int i = 0;
+//create a new file using the most recent file number
+//normally, the method should just create a file with an index that is one higher than the old one
+static int create_file(int last_num) {
+  int current_num = last_num + 1;
   String file_name;
   
-  while (i < 1000) {
-    file_name = file_prefix + i + file_type;
+  while(true)
+  {
+    file_name = file_prefix + current_num + file_type;
     char data_file_char_array[file_name.length() + 1];
     file_name.toCharArray(data_file_char_array, file_name.length() + 1);
 
-    Serial.println(file_name);
+    //Serial.println(file_name);
 
-    // Create the file if it does not already exist
+    // Create the file if it does not already exist, Normally, the file with the new file name should NOT exist
     if (!SD.exists(data_file_char_array)) {
       File datafile = SD.open(data_file_char_array, FILE_WRITE);
       datafile.println(header);
@@ -150,12 +156,15 @@ static int create_file() {
     
       break;
     } else {
-      i++;
+      current_num++;//in the unlikely event that file exists, just use another file index
     }
-    return i;
   }
+    return current_num;
+  
 }
 
+
+//read the data that will be sent to XBees. Store it as a string and send it to commserial
 static void read_data()
 {
   imu::Vector<3> accel_euler = bno.getVector(Adafruit_BNO055::VECTOR_ACCELEROMETER);
@@ -210,20 +219,17 @@ static void read_data()
   // if millis() or timer wraps around, we'll just reset it
   if (timer > millis())  timer = millis();
 
-  datastring = "S";
+  datastring += "S";
   datastring += ",";
   datastring += String(GPS.fix);
   datastring += ",";
 
-  // DEBUGGING
-  // approximately every 2 seconds or so, print out the current stats
-  if (millis() - timer > 2000) { 
-    timer = millis(); // reset the timer
+  
     
-    Serial.print("Fix: "); Serial.print((int)GPS.fix);
-    Serial.print(" quality: "); Serial.println((int)GPS.fixquality); 
+    /*Serial.print("Fix: "); Serial.print((int)GPS.fix);
+    Serial.print(" quality: "); Serial.println((int)GPS.fixquality); */
     if (GPS.fix) {
-      Serial.print("Location: ");
+      /*Serial.print("Location: ");
       Serial.print(GPS.latitude, 4); Serial.print(GPS.lat);
       Serial.print(", "); 
       Serial.print(GPS.longitude, 4); Serial.println(GPS.lon);
@@ -231,7 +237,7 @@ static void read_data()
       Serial.print("Speed (knots): "); Serial.println(GPS.speed);
       Serial.print("Angle: "); Serial.println(GPS.angle);
       Serial.print("Altitude: "); Serial.println(GPS.altitude);
-      Serial.print("Satellites: "); Serial.println((int)GPS.satellites);
+      Serial.print("Satellites: "); Serial.println((int)GPS.satellites);*/
 
       datastring += String(GPS.latitude);
       datastring += GPS.lat;
@@ -265,10 +271,13 @@ static void read_data()
 
   // SEND TO XBEE
   commserial.println(datastring);
-  }
+  
 }
 
-static void store_data() {
+/*adds the collected data to chip memory. It will only store to SD card once 100 entries are reached;
+Also creates a new file once every 1000 entries*/
+static void store_data() { 
+  //adds IMU data to memory
   datastring += ",";
   datastring += String(accel_x,6);
   datastring += ",";
@@ -287,21 +296,41 @@ static void store_data() {
   datastring += String(gyro_y,6);
   datastring += ",";
   datastring += String(gyro_z,6);
-  Serial.println(datastring); 
-  
-  String file_name = file_prefix + file_num + file_type;
-  char data_file_char_array[file_name.length() + 1];
-  file_name.toCharArray(data_file_char_array, file_name.length() + 1);
+  //Serial.println(datastring); 
+  //new line
+  datastring += "\n";
 
-  if (SD.exists(data_file_char_array)){
-   File dataFile = SD.open(data_file_char_array, FILE_WRITE);
+  //do not store into SD card if number of entries not reached
+  if(entry_num<100){entry_num++; total_entry++;}
+  else
+  {
+    //write into SD card
+    //first, find the current file name
+    String file_name = file_prefix + file_num + file_type;
+    char data_file_char_array[file_name.length() + 1];
+    file_name.toCharArray(data_file_char_array, file_name.length() + 1);
 
-    if (dataFile) {
-      dataFile.println(datastring);  // write to SD card
-      if (dataFile.size() > previous_file_size) {
-        previous_file_size = dataFile.size();
+    if (SD.exists(data_file_char_array)){
+    File dataFile = SD.open(data_file_char_array, FILE_WRITE);
+
+      if (dataFile) {
+        dataFile.println(datastring);  // write to SD card
+        if (dataFile.size() > previous_file_size) {
+          previous_file_size = dataFile.size();
+        }
+        dataFile.close();
       }
-      dataFile.close();
     }
+    //reset entry number and datastring
+    entry_num = 0;
+    datastring = "";
+
+    //create a new file if needed
+    if(total_entry>=max_entries){
+      file_num = create_file(file_num);
+      total_entry = 0;
+    }
+  
   }
 }
+
