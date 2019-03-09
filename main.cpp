@@ -9,8 +9,8 @@
 
 #define commserial Serial2
 
-Adafruit_BMP280 bmp;
-Adafruit_BNO055 bno = Adafruit_BNO055(55);
+Adafruit_BMP280 bmp;  // I2C
+Adafruit_BNO055 bno; //= Adafruit_BNO055();  // I2C
 
 // Configuration vars
 float freq = 2000;
@@ -52,19 +52,23 @@ void useInterrupt(boolean); // Func prototype keeps Arduino 0023 happy
 
 void setup() {
   Serial.begin(9600);
+  while (!Serial) { delay(50); }
+  Serial.println("starting up");
   
   if (!bno.begin())
     Serial.println("Error: BNO055 not detected.");
   if (!bmp.begin())
     Serial.println("Error: BMP280 not detected.");
+  if (!SD.begin(card_chipSelect))
+    Serial.println("Error: SD card not detected.");
 
-  SD.begin(card_chipSelect);
   ground_alt = bmp.readAltitude();
   
   commserial.begin(9600);
 
   GPS.begin(4800);
   mySerial.begin(4800);
+  while (!mySerial) { delay (50); }
   
   // uncomment this line to turn on RMC (recommended minimum) and GGA (fix data) including altitude
   GPS.sendCommand(PMTK_SET_NMEA_OUTPUT_RMCGGA);
@@ -300,10 +304,18 @@ static void store_data() {
   //new line
   datastring += "\n";
 
+  // ################## DEBUGGING ###########################3
+  Serial.print("Entry number: ");
+  Serial.println(entry_num);
+  Serial.print("Total entry number: ");
+  Serial.println(total_entry);
+  Serial.print(datastring);
+
   //do not store into SD card if number of entries not reached
-  if(entry_num<100){entry_num++; total_entry++;}
+  if(entry_num<2){entry_num++; total_entry++; Serial.println("less than 100 entries"); }
   else
   {
+    Serial.println("Writing to SD card");
     //write into SD card
     //first, find the current file name
     String file_name = file_prefix + file_num + file_type;
@@ -311,15 +323,21 @@ static void store_data() {
     file_name.toCharArray(data_file_char_array, file_name.length() + 1);
 
     if (SD.exists(data_file_char_array)){
-    File dataFile = SD.open(data_file_char_array, FILE_WRITE);
+      File dataFile = SD.open(data_file_char_array, FILE_WRITE);
+      Serial.println("first loop passed");
 
       if (dataFile) {
+        Serial.println("datafile does exist... should be writing now.");
         dataFile.println(datastring);  // write to SD card
         if (dataFile.size() > previous_file_size) {
           previous_file_size = dataFile.size();
         }
         dataFile.close();
+      } else {
+        Serial.println("if(datafile) problem");
       }
+    } else {
+      Serial.println("Error reading: if SD.exists problem. Doesn't exist");
     }
     //reset entry number and datastring
     entry_num = 0;
@@ -334,3 +352,29 @@ static void store_data() {
   }
 }
 
+/*void create_file2(int num) {
+  String file_name;
+  
+  while(true)
+  {
+    file_name = file_prefix + current_num + file_type;
+    char data_file_char_array[file_name.length() + 1];
+    file_name.toCharArray(data_file_char_array, file_name.length() + 1);
+
+    //Serial.println(file_name);
+
+    // Create the file if it does not already exist, Normally, the file with the new file name should NOT exist
+    if (!SD.exists(data_file_char_array)) {
+      File datafile = SD.open(data_file_char_array, FILE_WRITE);
+      datafile.println(header);
+      datafile.close();
+    
+      break;
+    } else {
+      current_num++;//in the unlikely event that file exists, just use another file index
+    }
+  }
+    return current_num;
+  
+}
+}*/
