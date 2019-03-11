@@ -202,11 +202,13 @@ static void read_data()
    // in case you are not using the interrupt above, you'll
   // need to 'hand query' the GPS, not suggested :(
   if (! usingInterrupt) {
+        while(mySerial.available()){
     // read data from the GPS in the 'main loop'
     char c = GPS.read();
     // if you want to debug, this is a good time to do it!
     if (GPSECHO)
       if (c) Serial.print(c);
+        }
   }
   
   // if a sentence is received, we can check the checksum, parse it...
@@ -216,10 +218,9 @@ static void read_data()
     // so be very wary if using OUTPUT_ALLDATA and trytng to print out data
     //Serial.println(GPS.lastNMEA());   // this also sets the newNMEAreceived() flag to false
   
-    if (!GPS.parse(GPS.lastNMEA()))   // this also sets the newNMEAreceived() flag to false
-      return;  // we can fail to parse a sentence in which case we should just wait for another
+    parsed = GPS.parse(GPS.lastNMEA()); // this also sets the newNMEAreceived() flag to false
+      
   }
-
   // if millis() or timer wraps around, we'll just reset it
   if (timer > millis())  timer = millis();
 
@@ -232,7 +233,7 @@ static void read_data()
     
     /*Serial.print("Fix: "); Serial.print((int)GPS.fix);
     Serial.print(" quality: "); Serial.println((int)GPS.fixquality); */
-    if (GPS.fix) {
+    if (parsed && GPS.fix) {
       /*Serial.print("Location: ");
       Serial.print(GPS.latitude, 4); Serial.print(GPS.lat);
       Serial.print(", "); 
