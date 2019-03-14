@@ -8,26 +8,25 @@
 #include <SD.h>
 
 // Other
-#include <SPI.h>  // necessary????????????????????
 #include <Wire.h>  // for I2C communication
 #include <utility/imumaths.h>
 
 #define gpsSerial Serial1
 #define xtendSerial Serial2
-#define GPSECHO true  // on for debugging
+#define DEBUG_MODE true
 
-Adafruit_BMP280 bmp;  // I2C wiring
-Adafruit_BNO055 bno;  // I2C wiring
+Adafruit_BMP280 bmp;  // I2C wiring: SCK-->SCL0, SDI-->SDA0
+Adafruit_BNO055 bno;  // I2C wiring: SCL-->SCL0, SDA-->SDA0
 
 // These refer to the same sensor. Adafruit's library is used to start it, and TinyGPSPlus is used to read
-Adafruit_GPS GPS(&gpsSerial);  // HW serial
+Adafruit_GPS GPS(&gpsSerial);  // HW serial: TX-->RX, RX-->TX
 TinyGPSPlus gps;
 
 // Configuration vars
 String file_prefix = "data";
 String file_type = ".txt";
 const int card_chip_select = BUILTIN_SDCARD;
-String header = "Fix,Satellites,Longitude,Latitude,Heading,GPS_speed,GPS_altitude,BMP_altitude,Temperature,Pressure,Speed,Accel_magnitude,Time_passed,Accel_x,Accel_y,Accel_z,Gyro_x,Gyro_y,Gyro_z,Mag_x,Mag_y,Mag_z";
+String header = "Fix,Satellites,Longitude,Latitude,Heading,GPS_speed,GPS_altitude,BMP_altitude,Temperature,Pressure,Speed,Accel_magnitude,Time_passed,New_Characters_Processed,Accel_x,Accel_y,Accel_z,Gyro_x,Gyro_y,Gyro_z,Mag_x,Mag_y,Mag_z";
 
 // Functional vars
 String datastring;
@@ -42,7 +41,9 @@ bool using_interrupt = false;  // GPS: false by default
 uint32_t t_curr, t_prev;  // timers
 float ground_alt, alt_prev;
 float accel_x,accel_y,accel_z,gyro_x,gyro_y,gyro_z,mag_x,mag_y,mag_z,temperature,pressure,alt,speed,accel_magnitude;
-uint32_t sats,chars_processed; bool fix; double gps_speed,gps_alt; float lng,lat,heading;  // GPS vars
+uint32_t sats,chars_processed,new_chars_processed,prev_chars_processed; bool fix; double gps_speed,gps_alt; float lng,lat,heading;  // GPS vars
+
+int counter = 0;
 
 // Function prototypes to keep the board happy
 static int create_file(int file_num);
@@ -76,8 +77,10 @@ void setup() {
     Serial.println("Error: bmp not detected.");
   if (!bno.begin())
     Serial.println("Error: bno not detected.");
-  if (!SD.begin())
+  if (!SD.begin(card_chip_select))
     Serial.println("Error: SD card not detected.");
+
+  file_num = create_file(file_num);
 
   ground_alt = bmp.readAltitude();
   t_prev = millis();
@@ -135,20 +138,34 @@ static void read_data() {
 
   // Calculate velocity and magnitude of acceleration
   t_curr = millis();
-  speed = (alt - alt_prev)/((t_curr - t_prev)/1000);
+  speed = (alt - alt_prev)/((t_curr - t_prev)/1000.0);
   accel_magnitude = sqrt(pow(accel_x,2) + pow(accel_y,2) + pow(accel_z,2));
   t_prev = t_curr;
   alt_prev = alt;
 
   while (gpsSerial.available()) gps.encode(gpsSerial.read());
+  chars_processed = gps.charsProcessed();
+  new_chars_processed = chars_processed - prev_chars_processed;
+  prev_chars_processed = chars_processed;
+  
   sats = gps.satellites.value();
   lng = gps.location.lng();
   lat = gps.location.lat();
   heading = gps.course.deg();
   gps_speed = gps.speed.kmph();
   gps_alt = gps.altitude.meters();
-  chars_processed = gps.charsProcessed();
-  fix = (gps.sentencesWithFix() > 0)? true:false;
+  fix = (gps.sentencesWithFix() > 0 && sats > 0)? true:false;
+
+  if (DEBUG_MODE && counter % 30 == 0) {
+    Serial.println("##################### NEW TRANSMISSION ######################");
+    Serial.print("sats: "); Serial.println(sats);
+    Serial.print("lng: "); Serial.println(lng);
+    Serial.print("lat: "); Serial.println(lat);
+    Serial.print("fix: "); Serial.println(fix);
+    Serial.print("new chars: "); Serial.println(new_chars_processed);
+    Serial.println();
+  }
+  counter++;
 
   // ############ Create the datastring ############
   datastring += String(fix);
@@ -175,7 +192,9 @@ static void read_data() {
   datastring += ",";
   datastring += accel_magnitude;
   datastring += ",";
-  datastring += String(t_curr, 0);  // in milliseconds
+  datastring += String(t_curr);  // in milliseconds
+  datastring += ",";
+  datastring += String(new_chars_processed);
   datastring += ",";
 
   send_data();  // to the xtend
@@ -212,7 +231,7 @@ static void store_data() {
   datastring = "";
   cached_records++;
 
-  // Only empty cache to the SD card if the number of records exceeds the limit
+  // Only empty cache to the SD card if the number of records exceeds the limit  
   if (cached_records >= cache_max) {
     String file_name = file_prefix + file_num + file_type;
     char data_file_char_array[file_name.length() + 1];
@@ -233,6 +252,7 @@ static void store_data() {
     }
 
     if (file_records >= max_records) {
+      if (DEBUG_MODE) { Serial.print("File num: "); Serial.println(file_num); }
       file_num = create_file(file_num);
       file_records = 0;
     }
@@ -245,7 +265,7 @@ SIGNAL(TIMER0_COMPA_vect) {
   char c = gps.read();
   // if you want to debug, this is a good time to do it!
 #ifdef UDR0
-  if (GPSECHO)
+  if (DEBUG_MODE)
     if (c) UDR0 = c;  
     // writing direct to UDR0 is much much faster than Serial.print 
     // but only one character can be written at a time. 
