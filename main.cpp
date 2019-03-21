@@ -154,16 +154,14 @@ static void read_data() {
   heading = gps.course.deg();
   gps_speed = gps.speed.kmph();
   gps_alt = gps.altitude.meters();
-  fix = (gps.sentencesWithFix() > 0 && sats > 0)? true:false;
+  fix = (gps.sentencesWithFix() > 0 && new_chars_processed > 30)? true:false;
 
-  if (DEBUG_MODE && counter % 30 == 0) {
+  if (DEBUG_MODE && counter % 20 == 0) {
+    Serial.println();
     Serial.println("##################### NEW TRANSMISSION ######################");
     Serial.print("sats: "); Serial.println(sats);
-    Serial.print("lng: "); Serial.println(lng);
-    Serial.print("lat: "); Serial.println(lat);
     Serial.print("fix: "); Serial.println(fix);
     Serial.print("new chars: "); Serial.println(new_chars_processed);
-    Serial.println();
   }
   counter++;
 
@@ -252,7 +250,7 @@ static void store_data() {
     }
 
     if (file_records >= max_records) {
-      if (DEBUG_MODE) { Serial.print("File num: "); Serial.println(file_num); }
+      if (DEBUG_MODE) { Serial.print("new file num: "); Serial.println(file_num+1); }
       file_num = create_file(file_num);
       file_records = 0;
     }
