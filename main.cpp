@@ -1,22 +1,13 @@
 #include <Arduino.h>
 
 // Sensors
-#include <Adafruit_BMP280.h>
-#include <Adafruit_BNO055.h>
 #include <Adafruit_GPS.h>
 #include <TinyGPS++.h>
 #include <SD.h>
 
-// Other
-#include <Wire.h>  // for I2C communication
-#include <utility/imumaths.h>
-
 #define gpsSerial Serial1
 #define xtendSerial Serial2
 #define DEBUG_MODE true
-
-Adafruit_BMP280 bmp;  // I2C wiring: SCK-->SCL0, SDI-->SDA0
-Adafruit_BNO055 bno;  // I2C wiring: SCL-->SCL0, SDA-->SDA0
 
 // These refer to the same sensor. Adafruit's library is used to start it, and TinyGPSPlus is used to read
 Adafruit_GPS GPS(&gpsSerial);  // HW serial: TX-->RX, RX-->TX
@@ -26,7 +17,7 @@ TinyGPSPlus gps;
 String file_prefix = "data";
 String file_type = ".txt";
 const int card_chip_select = BUILTIN_SDCARD;
-String header = "Fix,Satellites,Longitude,Latitude,Heading,GPS_speed,GPS_altitude,BMP_altitude,Temperature,Pressure,Speed,Accel_magnitude,Time_passed,New_Characters_Processed,Accel_x,Accel_y,Accel_z,Gyro_x,Gyro_y,Gyro_z,Mag_x,Mag_y,Mag_z";
+String header = "Fix,Satellites,Longitude,Latitude,Heading,GPS_speed,GPS_altitude,Time_passed,New_Characters_Processed";
 
 // Functional vars
 String datastring;
@@ -38,9 +29,7 @@ int cache_max = 50;  // cache this many records before writing to the file
 int max_records = 500;  // maximum number of records per file
 bool using_interrupt = false;  // GPS: false by default
 
-uint32_t t_curr, t_prev;  // timers
-float ground_alt, alt_prev;
-float accel_x,accel_y,accel_z,gyro_x,gyro_y,gyro_z,mag_x,mag_y,mag_z,temperature,pressure,alt,speed,accel_magnitude;
+uint32_t t_curr;  // timer
 uint32_t sats,chars_processed,new_chars_processed,prev_chars_processed; bool fix; double gps_speed,gps_alt; float lng,lat,heading;  // GPS vars
 
 int counter = 0;
@@ -58,7 +47,7 @@ void setup() {
 
   // GPS setup
   GPS.begin(9600);
-  gpsSerial.begin(9600);
+  gpsSerial.begin(9600); while (!gpsSerial);
   GPS.sendCommand(PMTK_SET_NMEA_OUTPUT_RMCGGA);  // Comment this line to turn off RMC (recommended minimum) and GGA (fix data) including altitude
   //GPS.sendCommand(PMTK_SET_NMEA_OUTPUT_RMCONLY);  // Uncomment this line to turn on only the "minimum recommended" data
   GPS.sendCommand(PMTK_SET_NMEA_UPDATE_5HZ);  // Set the update rate -- TEST TO SEE IF 1HZ or 5HZ WORKS BETTER
@@ -72,19 +61,7 @@ void setup() {
   delay(1000);
   gpsSerial.println(PMTK_Q_RELEASE);
 
-  // Begin the other sensors
-  if (!bmp.begin())
-    Serial.println("Error: bmp not detected.");
-  if (!bno.begin())
-    Serial.println("Error: bno not detected.");
-  if (!SD.begin(card_chip_select))
-    Serial.println("Error: SD card not detected.");
-
   file_num = create_file(file_num);
-
-  ground_alt = bmp.readAltitude();
-  t_prev = millis();
-  alt_prev = ground_alt;
 }
 
 void loop() {
@@ -116,37 +93,12 @@ static int create_file(int file_num) {
 }
 
 static void read_data() {
-  // ############ Read from the sensors ############
-  imu::Vector<3> accel_euler = bno.getVector(Adafruit_BNO055::VECTOR_ACCELEROMETER);
-  accel_x = accel_euler.x();
-  accel_y = accel_euler.y();
-  accel_z = accel_euler.z();
-
-  imu::Vector<3> gyro_euler = bno.getVector(Adafruit_BNO055::VECTOR_GYROSCOPE);
-  gyro_x = gyro_euler.x();
-  gyro_y = gyro_euler.y();
-  gyro_z = gyro_euler.z();
-
-  imu::Vector<3> mag_euler = bno.getVector(Adafruit_BNO055::VECTOR_MAGNETOMETER);
-  mag_x = mag_euler.x();
-  mag_y = mag_euler.y();
-  mag_z = mag_euler.z();
-
-  temperature = bmp.readTemperature();
-  pressure = bmp.readPressure();
-  alt = bmp.readAltitude() - ground_alt;
-
-  // Calculate velocity and magnitude of acceleration
-  t_curr = millis();
-  speed = (alt - alt_prev)/((t_curr - t_prev)/1000.0);
-  accel_magnitude = sqrt(pow(accel_x,2) + pow(accel_y,2) + pow(accel_z,2));
-  t_prev = t_curr;
-  alt_prev = alt;
-
   while (gpsSerial.available()) gps.encode(gpsSerial.read());
   chars_processed = gps.charsProcessed();
   new_chars_processed = chars_processed - prev_chars_processed;
   prev_chars_processed = chars_processed;
+
+  t_curr = millis();
   
   sats = gps.satellites.value();
   lng = gps.location.lng();
@@ -154,7 +106,7 @@ static void read_data() {
   heading = gps.course.deg();
   gps_speed = gps.speed.kmph();
   gps_alt = gps.altitude.meters();
-  fix = (gps.sentencesWithFix() > 0 && sats > 0)? true:false;
+  fix = (gps.sentencesWithFix() > 0 && new_chars_processed > 30)? true:false;
 
   if (DEBUG_MODE && counter % 30 == 0) {
     Serial.println("##################### NEW TRANSMISSION ######################");
@@ -182,48 +134,19 @@ static void read_data() {
   datastring += ",";
   datastring += String(gps_alt, 6);  // in metres
   datastring += ",";
-  datastring += alt;  // from the BMP
-  datastring += ",";
-  datastring += temperature;
-  datastring += ",";
-  datastring += pressure;
-  datastring += ",";
-  datastring += speed;  // calculated from the IMU data
-  datastring += ",";
-  datastring += accel_magnitude;
-  datastring += ",";
   datastring += String(t_curr);  // in milliseconds
   datastring += ",";
   datastring += String(new_chars_processed);
-  datastring += ",";
 
   send_data();  // to the xtend
 
-  // Add data not-to-transmit to the datastring
-  datastring += String(accel_x,6);
-  datastring += ",";
-  datastring += String(accel_y,6);
-  datastring += ",";
-  datastring += String(accel_z,6);
-  datastring += ",";
-  datastring += String(gyro_x,6);
-  datastring += ",";
-  datastring += String(gyro_y,6);
-  datastring += ",";
-  datastring += String(gyro_z,6);
-  datastring += ",";
-  datastring += String(mag_x,6);
-  datastring += ",";
-  datastring += String(mag_y,6);
-  datastring += ",";
-  datastring += String(mag_z,6);
   datastring += "\n";  // end of record
 }
 
 static void send_data() {
   xtendSerial.print("S,");
   xtendSerial.print(datastring);
-  xtendSerial.println("E");
+  xtendSerial.println(",E");
 }
 
 static void store_data() {
