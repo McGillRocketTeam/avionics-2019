@@ -26,7 +26,7 @@ TinyGPSPlus gps;
 String file_prefix = "data";
 String file_type = ".txt";
 const int card_chip_select = BUILTIN_SDCARD;
-String header = "Fix,Satellites,Longitude,Latitude,Heading,GPS_speed,GPS_altitude,BMP_altitude,Temperature,Pressure,Speed,Accel_magnitude,Time_passed,New_Characters_Processed,Accel_x,Accel_y,Accel_z,Gyro_x,Gyro_y,Gyro_z,Mag_x,Mag_y,Mag_z";
+String header = "Latitude,Longitude,BMP_altitude,Time_passed,Temperature,GPS_speed,Accel_magnitude,Satellites,Fix,GPS_altitude,Heading,Pressure,IMU_speed, new_char_processed,Accel_x,Accel_y,Accel_z,Gyro_x,Gyro_y,Gyro_z,Mag_x,Mag_y,Mag_z";
 
 // Functional vars
 String datastring;
@@ -166,36 +166,39 @@ static void read_data() {
   counter++;
 
   // ############ Create the datastring ############
-  datastring += String(fix);
-  datastring += ",";
-  datastring += String(sats, 0);
+  datastring += String(lat, 6);
   datastring += ",";
   datastring += String(lng, 6);
   datastring += ",";
-  datastring += String(lat, 6);
+  datastring += alt;  // from the BMP
   datastring += ",";
-  datastring += String(heading, 6);  // in degrees
+  datastring += String(t_curr);  // in milliseconds
   datastring += ",";
+  datastring += temperature;
+  datastring += ",";
+  
   datastring += String(gps_speed, 6);  // in kmph
+  datastring += ",";
+  datastring += accel_magnitude;
+  datastring += ",";
+  datastring += String(sats, 0);
+  datastring += ",";
+
+  send_data();  // to the xtend
+  
+  
+  datastring += String(fix);
   datastring += ",";
   datastring += String(gps_alt, 6);  // in metres
   datastring += ",";
-  datastring += alt;  // from the BMP
-  datastring += ",";
-  datastring += temperature;
+  datastring += String(heading, 6);  // in degrees
   datastring += ",";
   datastring += pressure;
   datastring += ",";
   datastring += speed;  // calculated from the IMU data
   datastring += ",";
-  datastring += accel_magnitude;
-  datastring += ",";
-  datastring += String(t_curr);  // in milliseconds
-  datastring += ",";
   datastring += String(new_chars_processed);
   datastring += ",";
-
-  send_data();  // to the xtend
 
   // Add data not-to-transmit to the datastring
   datastring += String(accel_x,6);
@@ -219,7 +222,7 @@ static void read_data() {
 }
 
 static void send_data() {
-  xtendSerial.print("S,");
+  xtendSerial.print("S");
   xtendSerial.print(datastring);
   xtendSerial.println("E");
 }
