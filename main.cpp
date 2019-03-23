@@ -120,23 +120,24 @@ static void read_data() {
   counter++;
 
   // ############ Create the datastring ############
-  datastring += String(fix);
-  datastring += ",";
-  datastring += String(sats, 0);
+  datastring += String(lat, 6);
   datastring += ",";
   datastring += String(lng, 6);
   datastring += ",";
-  datastring += String(lat, 6);
-  datastring += ",";
-  datastring += String(heading, 6);  // in degrees
-  datastring += ",";
-  datastring += String(gps_speed, 6);  // in kmph
-  datastring += ",";
-  datastring += String(gps_alt, 6);  // in metres
+  datastring += alt;  // from the BMP
   datastring += ",";
   datastring += String(t_curr);  // in milliseconds
   datastring += ",";
-  datastring += String(new_chars_processed);
+  datastring += temperature;
+  datastring += ",";
+  
+  datastring += String(gps_speed, 6);  // in kmph
+  datastring += ",";
+  datastring += accel_magnitude;
+  datastring += ",";
+  
+  datastring += String(sats, 0);
+  datastring += ",";
 
   send_data();  // to the xtend
 
@@ -144,9 +145,9 @@ static void read_data() {
 }
 
 static void send_data() {
-  xtendSerial.print("S,");
+  xtendSerial.print("S");
   xtendSerial.print(datastring);
-  xtendSerial.println(",E");
+  xtendSerial.println("E");
 }
 
 static void store_data() {
