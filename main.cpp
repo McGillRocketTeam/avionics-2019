@@ -15,11 +15,12 @@
 #define xtendSerial Serial2
 #define DEBUG_MODE true
 
-Adafruit_BMP280 bmp;  // I2C wiring: SCK-->SCL0, SDI-->SDA0
-Adafruit_BNO055 bno;  // I2C wiring: SCL-->SCL0, SDA-->SDA0
+// Refer to https://www.pjrc.com/teensy/pinout.html for pinout. Vin --> 3.3V (T)
+Adafruit_BMP280 bmp;  // I2C wiring: SCK-->SCL0 (T19), SDI-->SDA0 (T18)
+Adafruit_BNO055 bno;  // I2C wiring: SCL-->SCL0 (T19), SDA-->SDA0 (T18)
 
 // These refer to the same sensor. Adafruit's library is used to start it, and TinyGPSPlus is used to read
-Adafruit_GPS GPS(&gpsSerial);  // HW serial: TX-->RX, RX-->TX
+Adafruit_GPS GPS(&gpsSerial);  // HW serial: TX-->RX (T0), RX-->TX (T1)
 TinyGPSPlus gps;
 
 // Configuration vars
