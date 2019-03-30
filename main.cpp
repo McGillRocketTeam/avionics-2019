@@ -54,7 +54,7 @@ static void store_data();
 void use_interrupt(bool);
 
 void setup() {
-  Serial.begin(9600); while (!Serial);
+  Serial.begin(9600); 
   xtendSerial.begin(9600); while (!xtendSerial);
 
   // GPS setup
