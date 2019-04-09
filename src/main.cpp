@@ -15,6 +15,10 @@
 #define xtendSerial Serial2
 #define DEBUG_MODE true
 
+#define buzzer 2  // pin; must be PWM
+#define BUZZER_FREQ 500
+#define BUZZER_DUR 500  // in ms
+
 // Refer to https://www.pjrc.com/teensy/pinout.html for pinout. Vin --> 3.3V (T)
 Adafruit_BMP280 bmp;  // I2C wiring: SCK-->SCL0 (T19), SDI-->SDA0 (T18)
 Adafruit_BNO055 bno;  // I2C wiring: SCL-->SCL0 (T19), SDA-->SDA0 (T18)
@@ -51,6 +55,7 @@ static int create_file(int file_num);
 static void read_data();
 static void send_data();
 static void store_data();
+static void buzz();
 void use_interrupt(bool);
 
 void setup() {
@@ -91,6 +96,10 @@ void setup() {
 void loop() {
   read_data();
   store_data();
+  if (counter % 20 == 0) {
+    buzz();  // buzz every 10 iterations; ~500ms
+  }
+  counter++;
 }
 
 // Create a new file, usually with an index one higher than the previous
@@ -157,14 +166,15 @@ static void read_data() {
   gps_alt = gps.altitude.meters();
   fix = (gps.sentencesWithFix() > 0 && new_chars_processed > 30)? true:false;
 
-  if (DEBUG_MODE && counter % 20 == 0) {
+  if (DEBUG_MODE && counter % 100 == 0) {
     Serial.println();
     Serial.println("##################### NEW TRANSMISSION ######################");
-    Serial.print("sats: "); Serial.println(sats);
-    Serial.print("fix: "); Serial.println(fix);
+    Serial.print("temp: "); Serial.println(temperature);
+    Serial.print("z accel: "); Serial.println(accel_z);
+    //Serial.print("sats: "); Serial.println(sats);
+    //Serial.print("fix: "); Serial.println(fix);
     Serial.print("new chars: "); Serial.println(new_chars_processed);
   }
-  counter++;
 
   // ############ Create the datastring ############
   datastring += String(lat, 6);
@@ -259,6 +269,10 @@ static void store_data() {
       file_records = 0;
     }
   }
+}
+
+void buzz() {
+  tone(buzzer, BUZZER_FREQ, BUZZER_DUR);
 }
 
 #ifdef __AVR__
