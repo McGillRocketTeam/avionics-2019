@@ -11,11 +11,12 @@
 #include <Wire.h>  // for I2C communication
 #include <utility/imumaths.h>
 
-#define gpsSerial Serial1
-#define xtendSerial Serial2
+// Modified RX/TX serial for GPS and XTEND communication
+#define gpsSerial Serial5
+#define xtendSerial Serial4
 #define DEBUG_MODE true
 
-#define buzzer 2  // pin; must be PWM
+#define buzzer 14  // pin must be PWM
 #define BUZZER_FREQ 500
 #define BUZZER_DUR 500  // in ms
 
