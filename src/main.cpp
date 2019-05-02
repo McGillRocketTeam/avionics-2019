@@ -16,6 +16,13 @@
 #define xtendSerial Serial4
 #define DEBUG_MODE true
 
+// XTEND SHUTDOWN PIN
+// Final version of PCB wil have this pin automatically set to HIGH, 
+// so this code will not be necessary.
+#define xtendSHUTDOWN 26
+
+// BUZZER
+// Final version of PCB will not have a buzzer due to space restrictions. 
 #define buzzer 14  // pin must be PWM
 #define BUZZER_FREQ 500
 #define BUZZER_DUR 500  // in ms
@@ -61,7 +68,11 @@ void use_interrupt(bool);
 
 void setup() {
   Serial.begin(9600); 
+  
+  // XTEND setup
   xtendSerial.begin(9600); while (!xtendSerial);
+  pinMode(xtendSHUTDOWN, OUTPUT);
+  digitalWrite(xtendSHUTDOWN, HIGH);
 
   // GPS setup
   GPS.begin(9600);
@@ -235,7 +246,7 @@ static void read_data() {
 
 static void send_data() {
   xtendSerial.print("S");
-  //xtendSerial.print(datastring);
+  xtendSerial.print(datastring);
   xtendSerial.println("E");
 }
 
