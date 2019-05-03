@@ -70,7 +70,7 @@ void setup() {
   Serial.begin(9600); 
   
   // XTEND setup
-  xtendSerial.begin(9600); while (!xtendSerial);
+  xtendSerial.begin(115200); while (!xtendSerial); // CHANGE THIS TO 9600 IF YOUR XTEND IS 9600!!
   pinMode(xtendSHUTDOWN, OUTPUT);
   digitalWrite(xtendSHUTDOWN, HIGH);
 
@@ -247,7 +247,7 @@ static void read_data() {
 static void send_data() {
   xtendSerial.print("S");
   xtendSerial.print(datastring);
-  xtendSerial.println("E");
+  xtendSerial.print("E");
 }
 
 static void store_data() {
