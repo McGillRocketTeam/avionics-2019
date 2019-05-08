@@ -1,28 +1,27 @@
 #include <Wire.h>
 #include <SPI.h>
 #include <Adafruit_Sensor.h>
-#include <Adafruit_BMP280.h>
+#include <Adafruit_BME280.h>
 #include <EEPROM.h>
 
-
-Adafruit_BMP280 bmp; // I2C
+Adafruit_BME280 bme; // I2C?
 
 // Pin definitions
-#define main1 2
-#define main2 3
-#define drogue1 4
-#define drogue2 5
+#define main1 4
+#define main2 5
+#define drogue1 2
+#define drogue2 3
 #define buzzer 6
-#define led 
+#define led 13
 // Input pin definitions
-#define in11 
-#define in12
-#define in21 
-#define in22
+//#define in11 
+//#define in12 
+//#define in21 
+//#define in22
 
 // Control variables
 float local_pressure = 101200; //hPa (sea level)
-float threshold_altitude = 15000; //feet
+float threshold_altitude = 10000; //feet
 float main_deployment = 1000; //feet
 
 // Configuration variables
@@ -61,10 +60,10 @@ void setup() {
   pinMode(drogue2, OUTPUT);
   pinMode(buzzer, OUTPUT);
   pinMode(led, OUTPUT);
-  pinMode(in11, INPUT);
-  pinMode(in12, INPUT);
-  pinMode(in21, INPUT);
-  pinMode(in22, INPUT);
+//  pinMode(in11, INPUT);
+//  pinMode(in12, INPUT);
+//  pinMode(in21, INPUT);
+//  pinMode(in22, INPUT);
 
   digitalWrite(main1, LOW);
   digitalWrite(main2, LOW);
@@ -74,8 +73,8 @@ void setup() {
   digitalWrite(led, HIGH);
   
   
-  if (!bmp.begin()) {  
-    Serial.println(F("Could not find a valid BMP280 sensor, check wiring!"));
+  if (!bme.begin()) {  
+    Serial.println(F("Could not find a valid BME280 sensor, check wiring!"));
     tone(buzzer, freq);
     delay(5000);
     noTone(buzzer);
@@ -91,19 +90,18 @@ void setup() {
     }
   }
   for (int i = 0; i < 500; i++){
-    ground_alt += bmp.readAltitude(local_pressure/100); //takes sea-level pressure and reads alt 500 times
+    ground_alt += bme.readAltitude(local_pressure/100); //takes sea-level pressure and reads alt 500 times
   }
   ground_alt = ground_alt/500; //average of alt readings
   a = 2*3.14159*a; 
 }
 
 void loop() {
-
     if (main_deployed == false){
       T = (millis() - t_previous_loop)/1000; //millis() = time since program start running T running time of curr loop (s)
       t_previous_loop = millis(); //total time 
       
-      alt_meas = (bmp.readAltitude(local_pressure/100) - ground_alt)*3.28084; //Measures AGL altitude in feet
+      alt_meas = (bme.readAltitude(local_pressure/100) - ground_alt)*3.28084; //Measures AGL altitude in feet
   
       // Low-pass filter - rocket at high speeds pressure fluctuates and affects altitude reading, usaully at a high frequency, so low pass filter filters those high freuqency changes out 
       //and keeps just the overall, low frequency changes (caused by altitude change)
@@ -114,10 +112,14 @@ void loop() {
         alt_previous[i] = alt_previous[i+1];
       }
       alt_previous[num_meas-1] = alt_filtered;
+
+//      delay(5000); // TEST
+//      alt_filtered = 200;
       
       // Launch Detection
-      if (alt_filtered > 150){
+      if (alt_filtered > 150 && launched == false){
         launched = true;
+
       }
   
       //Average gradient of 10 past measurements.
@@ -127,8 +129,7 @@ void loop() {
       }
       if (T>0){
       average_gradient /= (num_meas);
-      }  
-  
+      }
       
       // Apogee detection
       if (alt_filtered > threshold_altitude && launched && apogee_reached == false){
@@ -138,13 +139,14 @@ void loop() {
           digitalWrite(drogue1, HIGH);
           digitalWrite(drogue2, HIGH);
           delay(50);
-          R11 = digitalRead(in11);
-          R12 = digitalRead(in12);
-            if(R11){
-              time11 = millis();
-            }if(R12){
-              time12 = millis();
-            }
+//          R11 = digitalRead(in11);
+//          R12 = digitalRead(in12);
+//            if(R11){
+//              time11 = millis();
+//            }if(R12){
+//              time12 = millis();
+//            }
+          
           digitalWrite(drogue1, LOW);
           digitalWrite(drogue2, LOW);
         }
@@ -156,42 +158,42 @@ void loop() {
           digitalWrite(main1, HIGH);
           digitalWrite(main2, HIGH);
           delay(50);
-          R21 = digitalRead(in21);
-          R22 = digitalRead(in22);
-            if(R21){
-              time21 = millis();
-            }if(R22){
-              time22 = millis();
-            }
+//          R21 = digitalRead(in21);
+//          R22 = digitalRead(in22);
+//            if(R21){
+//              time21 = millis();
+//            }if(R22){
+//              time22 = millis();
+//            }
           digitalWrite(main1, LOW);
           digitalWrite(main2, LOW);
       }
   
   
-      // Simultaneous buzzer (does not interrupt loop whilst buzzing)
-      if ((millis() - t_previous_buzz)> 1000){
-        tone(buzzer, freq);
-      }
-      if((millis() - t_previous_buzz) > 1100){
-        noTone(buzzer);
-        t_previous_buzz = millis();
-      }
-  
-      } 
-    else{ //Longer buzz to indicate program completion
-      
-      tone(buzzer, freq);
-      delay(1000);
-      noTone(buzzer);
-      delay(1000);
-      EEPROM.write(0, R11);
-      EEPROMWritelong(1, time11);
-      EEPROM.write(5, R12);
-      EEPROMWritelong(6, time12);
-      EEPROM.write(10, R21);
-      EEPROMWritelong(11, time21);
-      EEPROM.write(15, R22);
-      EEPROMWritelong(16, time22);
+     //  Simultaneous buzzer (does not interrupt loop whilst buzzing)
+//      if ((millis() - t_previous_buzz)> 1000){
+//        tone(buzzer, freq);
+//      }
+//      if((millis() - t_previous_buzz) > 1100){
+//        noTone(buzzer);
+//        t_previous_buzz = millis();
+//      }
+//  
+//      } 
+//    else{ //Longer buzz to indicate program completion
+//      
+//      tone(buzzer, freq);
+//      delay(1000);
+//      noTone(buzzer);
+//      delay(1000);
+//      EEPROM.write(0, R11);
+//      EEPROMWritelong(1, time11);
+//      EEPROM.write(5, R12);
+//      EEPROMWritelong(6, time12);
+//      EEPROM.write(10, R21);
+//      EEPROMWritelong(11, time21);
+//      EEPROM.write(15, R22);
+//      EEPROMWritelong(16, time22);
 
     }
 
