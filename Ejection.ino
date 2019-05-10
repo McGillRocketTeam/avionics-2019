@@ -21,8 +21,10 @@ Adafruit_BME280 bme; // I2C?
 
 // Control variables
 float local_pressure = 101200; //hPa (sea level)
-float threshold_altitude = 10000; //feet
+float threshold_altitude = 2000; //feet
 float main_deployment = 1000; //feet
+long drogue_delay = 500; // milliseconds. time that drogue is HIGH
+long main_delay = 500; // milliseconds. time that main is HIGH
 
 // Configuration variables
 float freq = 3750; // buzzer sound frequency.
@@ -97,6 +99,8 @@ void setup() {
 }
 
 void loop() {
+
+    
     if (main_deployed == false){
       T = (millis() - t_previous_loop)/1000; //millis() = time since program start running T running time of curr loop (s)
       t_previous_loop = millis(); //total time 
@@ -112,9 +116,6 @@ void loop() {
         alt_previous[i] = alt_previous[i+1];
       }
       alt_previous[num_meas-1] = alt_filtered;
-
-//      delay(5000); // TEST
-//      alt_filtered = 200;
       
       // Launch Detection
       if (alt_filtered > 150 && launched == false){
@@ -138,7 +139,7 @@ void loop() {
           apogee_reached = true;
           digitalWrite(drogue1, HIGH);
           digitalWrite(drogue2, HIGH);
-          delay(50);
+          delay(drogue_delay);
 //          R11 = digitalRead(in11);
 //          R12 = digitalRead(in12);
 //            if(R11){
@@ -157,7 +158,7 @@ void loop() {
           main_deployed = true;
           digitalWrite(main1, HIGH);
           digitalWrite(main2, HIGH);
-          delay(50);
+          delay(main_delay);
 //          R21 = digitalRead(in21);
 //          R22 = digitalRead(in22);
 //            if(R21){
