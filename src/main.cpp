@@ -157,6 +157,7 @@ static String build_data(String datatype) {
     datastring += ",";
     datastring += String(new_chars_processed);
     datastring += ",";
+    datastring += "\n";  // end of record
   }
   return datastring;
 }
