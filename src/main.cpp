@@ -26,6 +26,8 @@ String file_prefix = "data";
 String file_type = ".txt";
 const int card_chip_select = BUILTIN_SDCARD;
 String header = "Latitude,Longitude,Time_passed,GPS_altitude, GPS_speed,Satellites,Fix,Heading,new_char_processed";
+bool new_session = false;
+int session_num = 1;
 
 // Functional vars
 // String datastring;
@@ -75,14 +77,10 @@ void setup() {
   delay(1000);
   gpsSerial.println(PMTK_Q_RELEASE);
 
-  
   if (!SD.begin(card_chip_select))
     Serial.println("Error: SD card not detected.");
 
   file_num = create_file(file_num);
-
- 
- 
 }
 
 void loop() {
@@ -91,29 +89,6 @@ void loop() {
   send_data(build_data("medium"));
   store_data(build_data("compelete"));
   
-}
-
-// Create a new file, usually with an index one higher than the previous
-static int create_file(int file_num) {
-  int current_num = file_num + 1;
-  String file_name;
-
-  while(true) {
-    file_name = file_prefix + current_num + file_type;
-    char data_file_char_array[file_name.length() + 1];
-    file_name.toCharArray(data_file_char_array, file_name.length() + 1);
-
-    // If the file doesn't exist, create it, otherwise try the next number
-    if (!SD.exists(data_file_char_array)) {
-      File datafile = SD.open(data_file_char_array, FILE_WRITE);
-      datafile.println(header);
-      datafile.close();
-      break;
-    } else {
-      current_num++;
-    }
-  }
-  return current_num;
 }
 
 static void read_sensors() {
@@ -190,6 +165,34 @@ static void send_data(String data) {
     xtendSerial.println("S" + data + "E");
 }
 
+// Create a new file, usually with an index one higher than the previous
+static int create_file(int file_num) {
+  int current_num = file_num + 1;
+  String file_name;
+
+  while(true) {
+    file_name = session_num + file_prefix + current_num + file_type;
+    char data_file_char_array[file_name.length() + 1];
+    file_name.toCharArray(data_file_char_array, file_name.length() + 1);
+
+    // If the file doesn't exist, create it, otherwise try the next number
+    if (!SD.exists(data_file_char_array)) {
+      new_session = true;
+      File datafile = SD.open(data_file_char_array, FILE_WRITE);
+      datafile.println(header);
+      datafile.close();
+      break;
+    } else {
+      if (!new_session) {
+        session_num++;
+      } else {
+      current_num++;
+      }
+    }
+  }
+  return current_num;
+}
+
 static void store_data(String datastring) {
   cache += datastring;
   datastring = "";
@@ -197,7 +200,7 @@ static void store_data(String datastring) {
 
   // Only empty cache to the SD card if the number of records exceeds the limit  
   if (cached_records >= cache_max) {
-    String file_name = file_prefix + file_num + file_type;
+    String file_name = session_num + file_prefix + file_num + file_type;
     char data_file_char_array[file_name.length() + 1];
     file_name.toCharArray(data_file_char_array, file_name.length() + 1);
 
