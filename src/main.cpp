@@ -11,21 +11,12 @@
 #include <Wire.h>  // for I2C communication
 #include <utility/imumaths.h>
 
-// Modified RX/TX serial for GPS and XTEND communication
 #define gpsSerial Serial5
 #define xtendSerial Serial4
 #define DEBUG_MODE true
 
-// XTEND SHUTDOWN PIN
-// Final version of PCB wil have this pin automatically set to HIGH, 
-// so this code will not be necessary.
+//XTEND setup
 #define xtendSHUTDOWN 26
-
-// BUZZER
-// Final version of PCB will not have a buzzer due to space restrictions. 
-#define buzzer 14  // pin must be PWM
-#define BUZZER_FREQ 500
-#define BUZZER_DUR 500  // in ms
 
 // Refer to https://www.pjrc.com/teensy/pinout.html for pinout. Vin --> 3.3V (T)
 Adafruit_BMP280 bmp;  // I2C wiring: SCK-->SCL0 (T19), SDI-->SDA0 (T18)
@@ -40,15 +31,17 @@ String file_prefix = "data";
 String file_type = ".txt";
 const int card_chip_select = BUILTIN_SDCARD;
 String header = "Latitude,Longitude,BMP_altitude,Time_passed,Temperature,GPS_speed,Accel_magnitude,Satellites,Fix,GPS_altitude,Heading,Pressure,IMU_speed, new_char_processed,Accel_x,Accel_y,Accel_z,Gyro_x,Gyro_y,Gyro_z,Mag_x,Mag_y,Mag_z";
+bool new_session = false;
+int session_num = 1;
 
 // Functional vars
-String datastring;
+// String datastring;
 String cache;  // cached datastrings
 int file_num = 0;  // current file number
 int cached_records = 0;  // current number of cached records; used to determine whether or not to write to SD
 int file_records = 0;  // total records in the current file
 int cache_max = 50;  // cache this many records before writing to the file
-int max_records = 500;  // maximum number of records per file
+int max_records = 1000;  // maximum number of records per file
 bool using_interrupt = false;  // GPS: false by default
 
 uint32_t t_curr, t_prev;  // timers
@@ -60,17 +53,18 @@ int counter = 0;
 
 // Function prototypes to keep the board happy
 static int create_file(int file_num);
-static void read_data();
-static void send_data();
-static void store_data();
-static void buzz();
+static void read_sensors();
+static String build_data(String datatype);
+static void send_data(String data);
+// static String complete_data(String datatype, String data);
+static void store_data(String data);
 void use_interrupt(bool);
 
 void setup() {
   Serial.begin(9600); 
   
   // XTEND setup
-  xtendSerial.begin(115200); while (!xtendSerial); // CHANGE THIS TO 9600 IF YOUR XTEND IS 9600!!
+  xtendSerial.begin(9600); while(!xtendSerial);
   pinMode(xtendSHUTDOWN, OUTPUT);
   digitalWrite(xtendSHUTDOWN, HIGH);
 
@@ -106,38 +100,14 @@ void setup() {
 }
 
 void loop() {
-  read_data();
-  store_data();
-  if (counter % 20 == 0) {
-    buzz();  // buzz every 10 iterations; ~500ms
-  }
-  counter++;
+
+  read_sensors();
+  send_data(build_data("medium"));
+  store_data(build_data("complete"));
+  
 }
 
-// Create a new file, usually with an index one higher than the previous
-static int create_file(int file_num) {
-  int current_num = file_num + 1;
-  String file_name;
-
-  while(true) {
-    file_name = file_prefix + current_num + file_type;
-    char data_file_char_array[file_name.length() + 1];
-    file_name.toCharArray(data_file_char_array, file_name.length() + 1);
-
-    // If the file doesn't exist, create it, otherwise try the next number
-    if (!SD.exists(data_file_char_array)) {
-      File datafile = SD.open(data_file_char_array, FILE_WRITE);
-      datafile.println(header);
-      datafile.close();
-      break;
-    } else {
-      current_num++;
-    }
-  }
-  return current_num;
-}
-
-static void read_data() {
+static void read_sensors() {
   // ############ Read from the sensors ############
   imu::Vector<3> accel_euler = bno.getVector(Adafruit_BNO055::VECTOR_ACCELEROMETER);
   accel_x = accel_euler.x();
@@ -178,86 +148,132 @@ static void read_data() {
   gps_alt = gps.altitude.meters();
   fix = (gps.sentencesWithFix() > 0 && new_chars_processed > 30)? true:false;
 
-  if (DEBUG_MODE && counter % 100 == 0) {
+  if (DEBUG_MODE && counter % 20 == 0) {
     Serial.println();
     Serial.println("##################### NEW TRANSMISSION ######################");
-    Serial.print("temp: "); Serial.println(temperature);
-    Serial.print("z accel: "); Serial.println(accel_z);
-    //Serial.print("sats: "); Serial.println(sats);
-    //Serial.print("fix: "); Serial.println(fix);
+    Serial.print("sats: "); Serial.println(sats);
+    Serial.print("fix: "); Serial.println(fix);
     Serial.print("new chars: "); Serial.println(new_chars_processed);
   }
-
-  // ############ Create the datastring ############
-  datastring += String(lat, 6);
-  datastring += ",";
-  datastring += String(lng, 6);
-  datastring += ",";
-  datastring += alt;  // from the BMP
-  datastring += ",";
-  datastring += String(t_curr);  // in milliseconds
-  datastring += ",";
-  datastring += temperature;
-  datastring += ",";
-  
-  datastring += String(gps_speed, 6);  // in kmph
-  datastring += ",";
-  datastring += accel_magnitude;
-  datastring += ",";
-  datastring += String(sats, 0);
-  datastring += ",";
-
-  send_data();  // to the xtend
-  
-  
-  datastring += String(fix);
-  datastring += ",";
-  datastring += String(gps_alt, 6);  // in metres
-  datastring += ",";
-  datastring += String(heading, 6);  // in degrees
-  datastring += ",";
-  datastring += pressure;
-  datastring += ",";
-  datastring += speed;  // calculated from the IMU data
-  datastring += ",";
-  datastring += String(new_chars_processed);
-  datastring += ",";
-
-  // Add data not-to-transmit to the datastring
-  datastring += String(accel_x,6);
-  datastring += ",";
-  datastring += String(accel_y,6);
-  datastring += ",";
-  datastring += String(accel_z,6);
-  datastring += ",";
-  datastring += String(gyro_x,6);
-  datastring += ",";
-  datastring += String(gyro_y,6);
-  datastring += ",";
-  datastring += String(gyro_z,6);
-  datastring += ",";
-  datastring += String(mag_x,6);
-  datastring += ",";
-  datastring += String(mag_y,6);
-  datastring += ",";
-  datastring += String(mag_z,6);
-  datastring += "\n";  // end of record
+  counter++;
 }
 
-static void send_data() {
-  xtendSerial.print("S");
-  xtendSerial.print(datastring);
-  xtendSerial.print("E");
+static String build_data(String datatype) {
+  String datastring = "";
+
+  if (datatype == "medium") {
+    // ############ Create the medium-length datastring ############
+    datastring += String(lat, 6);
+    datastring += ",";
+    datastring += String(lng, 6);
+    datastring += ",";
+    datastring += String(t_curr);  // in milliseconds
+    datastring += ",";
+    datastring += alt;  // from the BMP
+    datastring += ",";
+    datastring += String(gps_speed, 6);  // in kmph
+    datastring += ",";
+    datastring += String(sats, 0);
+    datastring += ",";
+    datastring += accel_magnitude;
+    datastring += ",";
+    datastring += temperature;
+    datastring += ",";
+    datastring += String(gyro_x, 6); //from 9DOF in degrees/s
+    datastring += ",";
+
+  } else {
+    // ############ Create the medium-length datastring ############
+    datastring += String(lat, 6);
+    datastring += ",";
+    datastring += String(lng, 6);
+    datastring += ",";
+    datastring += String(t_curr);  // in milliseconds
+    datastring += ",";
+    datastring += alt;  // from the BMP
+    datastring += ",";
+    datastring += String(gps_speed, 6);  // in kmph, horizontal speed
+    datastring += ",";
+    datastring += String(sats, 0);
+    datastring += ",";
+    datastring += accel_magnitude;
+    datastring += ",";
+    datastring += temperature;
+    datastring += ",";
+    datastring += String(gyro_x, 6); //from 9DOF in degrees/s
+    datastring += ",";
+    datastring += String(fix);
+    datastring += ",";
+    datastring += String(gps_alt, 6);  // in metres
+    datastring += ",";
+    datastring += String(heading, 6);  // in degrees
+    datastring += ",";
+    datastring += pressure;
+    datastring += ",";
+    datastring += speed;  // calculated from the IMU data, vertical speed
+    datastring += ",";
+    datastring += String(new_chars_processed);
+    datastring += ",";
+    // Add data not-to-transmit to the datastring
+    datastring += String(accel_x,6);
+    datastring += ",";
+    datastring += String(accel_y,6);
+    datastring += ",";
+    datastring += String(accel_z,6);
+    datastring += ",";
+    datastring += String(gyro_y,6);
+    datastring += ",";
+    datastring += String(gyro_z,6);
+    datastring += ",";
+    datastring += String(mag_x,6);
+    datastring += ",";
+    datastring += String(mag_y,6);
+    datastring += ",";
+    datastring += String(mag_z,6);
+    datastring += "\n";  // end of record
+  } 
+  return datastring;
 }
 
-static void store_data() {
+static void send_data(String data) {
+    xtendSerial.println("S" + data + "E");
+}
+
+// Create a new file, usually with an index one higher than the previous
+static int create_file(int file_num) {
+  int current_num = file_num + 1;
+  String file_name;
+
+  while(true) {
+    file_name = session_num + file_prefix + current_num + file_type;
+    char data_file_char_array[file_name.length() + 1];
+    file_name.toCharArray(data_file_char_array, file_name.length() + 1);
+
+    // If the file doesn't exist, create it, otherwise try the next number
+    if (!SD.exists(data_file_char_array)) {
+      File datafile = SD.open(data_file_char_array, FILE_WRITE);
+      datafile.println(header);
+      datafile.close();
+      break;
+    } else {
+      if (!new_session) {
+        session_num++;
+      } else {
+      current_num++;
+      }
+    }
+  }
+  return current_num;
+}
+
+static void store_data(String datastring) {
   cache += datastring;
   datastring = "";
   cached_records++;
 
   // Only empty cache to the SD card if the number of records exceeds the limit  
   if (cached_records >= cache_max) {
-    String file_name = file_prefix + file_num + file_type;
+    String file_name = session_num + file_prefix + file_num + file_type;
     char data_file_char_array[file_name.length() + 1];
     file_name.toCharArray(data_file_char_array, file_name.length() + 1);
 
@@ -281,10 +297,6 @@ static void store_data() {
       file_records = 0;
     }
   }
-}
-
-void buzz() {
-  tone(buzzer, BUZZER_FREQ, BUZZER_DUR);
 }
 
 #ifdef __AVR__
