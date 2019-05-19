@@ -30,7 +30,7 @@ TinyGPSPlus gps;
 String file_prefix = "data";
 String file_type = ".txt";
 const int card_chip_select = BUILTIN_SDCARD;
-String header = "Latitude,Longitude,BMP_altitude,Time_passed,Temperature,GPS_speed,Accel_magnitude,Satellites,Fix,GPS_altitude,Heading,Pressure,IMU_speed, new_char_processed,Accel_x,Accel_y,Accel_z,Gyro_x,Gyro_y,Gyro_z,Mag_x,Mag_y,Mag_z";
+String header = "Latitude,Longitude,Time_passed,BMP_altitude,GPS_speed,Satellites,Accel_magnitude,Temperature,Fix,GPS_altitude,Heading,Pressure,IMU_speed,new_char_processed,Accel_x,Accel_y,Accel_z,Gyro_x,Gyro_y,Gyro_z,Mag_x,Mag_y,Mag_z";
 bool new_session = false;
 int session_num = 1;
 
@@ -183,7 +183,7 @@ static String build_data(String datatype) {
     datastring += ",";
 
   } else {
-    // ############ Create the medium-length datastring ############
+    // ############ Create saved datastring ############
     datastring += String(lat, 6);
     datastring += ",";
     datastring += String(lng, 6);
@@ -200,8 +200,6 @@ static String build_data(String datatype) {
     datastring += ",";
     datastring += temperature;
     datastring += ",";
-    datastring += String(gyro_x, 6); //from 9DOF in degrees/s
-    datastring += ",";
     datastring += String(fix);
     datastring += ",";
     datastring += String(gps_alt, 6);  // in metres
@@ -214,12 +212,13 @@ static String build_data(String datatype) {
     datastring += ",";
     datastring += String(new_chars_processed);
     datastring += ",";
-    // Add data not-to-transmit to the datastring
     datastring += String(accel_x,6);
     datastring += ",";
     datastring += String(accel_y,6);
     datastring += ",";
     datastring += String(accel_z,6);
+    datastring += ",";
+    datastring += String(gyro_x, 6); //from 9DOF in degrees/s
     datastring += ",";
     datastring += String(gyro_y,6);
     datastring += ",";
@@ -230,6 +229,7 @@ static String build_data(String datatype) {
     datastring += String(mag_y,6);
     datastring += ",";
     datastring += String(mag_z,6);
+    datastring += ",";
     datastring += "\n";  // end of record
   } 
   return datastring;
