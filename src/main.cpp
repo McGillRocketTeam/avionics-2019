@@ -179,7 +179,7 @@ static String build_data(String datatype) {
     datastring += ",";
     datastring += temperature;
     datastring += ",";
-    datastring += String(gyro_x, 6); //from 9DOF in degrees/s
+    datastring += String(gyro_y, 6); //from 9DOF in degrees/s
     datastring += ",";
 
   } else {
@@ -218,7 +218,7 @@ static String build_data(String datatype) {
     datastring += ",";
     datastring += String(accel_z,6);
     datastring += ",";
-    datastring += String(gyro_x, 6); //from 9DOF in degrees/s
+    datastring += String(gyro_x, 6); 
     datastring += ",";
     datastring += String(gyro_y,6);
     datastring += ",";
