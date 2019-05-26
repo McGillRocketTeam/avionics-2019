@@ -1,6 +1,6 @@
 {
     "terminal.integrated.env.osx": {
-        "PATH": "/Users/luca/.platformio/penv/bin:/Users/luca/.platformio/penv:/usr/local/Cellar/pyenv-virtualenv/1.1.3/shims:/Users/luca/.pyenv/shims:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin",
+        "PATH": "/Users/jliu/.platformio/penv/bin:/Users/jliu/.platformio/penv:/anaconda3/bin:/Library/Frameworks/Python.framework/Versions/3.7/bin:/Library/Frameworks/Python.framework/Versions/3.7/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:/opt/X11/bin",
         "PLATFORMIO_CALLER": "vscode"
     }
 }
