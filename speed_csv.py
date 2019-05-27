@@ -13,8 +13,8 @@ time_speed = []  # List of dicts
 for num in range(len(times)):
         if(times[num]==0 or times[num-1]==0): continue
         time_speed.append(
-                {'time': times[num],'speed': calculateSpeed(times[num-1], times[num], alts[num-1], alts[num])})
+                {'Time': times[num],'Speed': calculateSpeed(times[num-1], times[num], alts[num-1], alts[num])})
 
-
+pd.DataFrame.from_dict(time_speed).to_csv('file1.csv', index=False)
 
 
