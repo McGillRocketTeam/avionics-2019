@@ -21,8 +21,8 @@ Adafruit_BME280 bme; // I2C?
 
 // Control variables
 float local_pressure = 101200; //hPa (sea level)
-float threshold_altitude = 2000; //feet
-float main_deployment = 1000; //feet
+float threshold_altitude = 10000; //feet
+float main_deployment = 1500; //feet
 long drogue_delay = 500; // milliseconds. time that drogue is HIGH
 long main_delay = 500; // milliseconds. time that main is HIGH
 
